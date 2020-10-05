@@ -29,6 +29,7 @@ import io.crate.analyze.OrderBy;
 import io.crate.analyze.SymbolEvaluator;
 import io.crate.analyze.relations.AbstractTableRelation;
 import io.crate.analyze.relations.TableFunctionRelation;
+import io.crate.breaker.RamAccounting;
 import io.crate.breaker.TypeGuessEstimateRowSize;
 import io.crate.data.CollectionBucket;
 import io.crate.data.InMemoryBatchIterator;
@@ -472,10 +473,14 @@ public class InsertFromValues implements LogicalPlan {
             clusterService,
             rowShardResolver,
             new TypeGuessEstimateRowSize(),
+
+            // values are already in memory, no extra accounting
+            RamAccounting.NO_ACCOUNTING,
             indexNameResolver,
             collectContext.expressions(),
             itemFactory,
-            true);
+            true
+        );
     }
 
     private static void checkPrimaryKeyValuesNotNull(ArrayList<Input<?>> primaryKeyInputs) {

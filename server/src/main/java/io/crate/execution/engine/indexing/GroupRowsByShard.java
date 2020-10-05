@@ -22,6 +22,7 @@
 
 package io.crate.execution.engine.indexing;
 
+import io.crate.breaker.RamAccounting;
 import io.crate.data.Input;
 import io.crate.data.Row;
 import io.crate.execution.dml.ShardRequest;
@@ -62,10 +63,12 @@ public final class GroupRowsByShard<TReq extends ShardRequest<TReq, TItem>, TIte
     private final Input<String> sourceUriInput;
     private final Input<Long> lineNumberInput;
     private final ToLongFunction<Row> estimateRowSize;
+    private final RamAccounting ramAccounting;
 
     public GroupRowsByShard(ClusterService clusterService,
                             RowShardResolver rowShardResolver,
                             ToLongFunction<Row> estimateRowSize,
+                            RamAccounting ramAccounting,
                             Supplier<String> indexNameResolver,
                             List<? extends CollectExpression<Row, ?>> expressions,
                             Function<String, TItem> itemFactory,
@@ -76,6 +79,7 @@ public final class GroupRowsByShard<TReq extends ShardRequest<TReq, TItem>, TIte
             : "expressions should be a RandomAccess list for zero allocation iterations";
 
         this.clusterService = clusterService;
+        this.ramAccounting = ramAccounting;
         this.rowShardResolver = rowShardResolver;
         this.indexNameResolver = indexNameResolver;
         this.expressions = expressions;
@@ -91,6 +95,7 @@ public final class GroupRowsByShard<TReq extends ShardRequest<TReq, TItem>, TIte
     public GroupRowsByShard(ClusterService clusterService,
                             RowShardResolver rowShardResolver,
                             ToLongFunction<Row> estimateRowSize,
+                            RamAccounting ramAccounting,
                             Supplier<String> indexNameResolver,
                             List<? extends CollectExpression<Row, ?>> expressions,
                             Function<String, TItem> itemFactory,
@@ -98,6 +103,7 @@ public final class GroupRowsByShard<TReq extends ShardRequest<TReq, TItem>, TIte
         this(clusterService,
              rowShardResolver,
              estimateRowSize,
+             ramAccounting,
              indexNameResolver,
              expressions,
              itemFactory,
@@ -131,6 +137,7 @@ public final class GroupRowsByShard<TReq extends ShardRequest<TReq, TItem>, TIte
             RowSourceInfo rowSourceInfo = RowSourceInfo.emptyMarkerOrNewInstance(sourceUri, lineNumber);
             ShardLocation shardLocation = getShardLocation(indexName, id, routing);
             long sizeEstimate = estimateRowSize.applyAsLong(row);
+            ramAccounting.addBytes(sizeEstimate);
             if (shardLocation == null) {
                 shardedRequests.add(item, sizeEstimate, indexName, routing, rowSourceInfo);
             } else {
